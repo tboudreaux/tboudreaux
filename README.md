@@ -3,6 +3,7 @@
 **Postdoctoral Research Associate & Astronomy Lecturer @ Dartmouth College**
 
 [🌐 Personal Website](https://emilyboudreaux.com)
+
 [👩‍💻 Software Portfolio](https://tboudreaux.github.io/tboudreaux/)
 
 🔭 Computational astrophysicist exploring stellar structure & evolution.
