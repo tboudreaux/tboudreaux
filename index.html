@@ -24,6 +24,8 @@
             --cursor-color: #c0caf5; --error-color: #f7768e; --link-color: #7dcfff;
             --pager-bg: rgba(0,0,0,0.1); --pager-border: #414868; --pager-header: #bb9af7;
             --table-header-bg: #1f2335;
+            --vim-bg: #1a1b26; --vim-text: #c0caf5; --vim-status-bg: #414868; --vim-line-num: #414868;
+            --vim-cursor-bg: #c0caf5; --vim-cursor-text: #1a1b26; --vim-visual-bg: #414868;
         }
         @media (prefers-color-scheme: light) {
             :root {
@@ -33,6 +35,8 @@
                 --cursor-color: #333333; --error-color: #d93025; --link-color: #1a73e8;
                 --pager-bg: #f8f9fa; --pager-border: #e0e0e0; --pager-header: #1a73e8;
                 --table-header-bg: #f1f3f5;
+                --vim-bg: #ffffff; --vim-text: #333333; --vim-status-bg: #e0e0e0; --vim-line-num: #cccccc;
+                --vim-cursor-bg: #333333; --vim-cursor-text: #ffffff; --vim-visual-bg: #d0d0d0;
             }
         }
         html, body {
@@ -40,10 +44,8 @@
             overflow: hidden; /* Prevent scrollbars */
         }
         body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
             background-color: var(--bg-color);
+            /* Removed flexbox centering to allow for absolute positioning */
         }
         .terminal-body, .command-input { font-family: 'Fira Code', monospace; }
         .command-input { background: transparent; border: none; outline: none; box-shadow: none; color: var(--command-color); caret-color: var(--cursor-color); padding: 0; margin: 0; }
@@ -77,19 +79,22 @@
 
         /* Window & Animation Styles */
         #terminal-wrapper {
-            width: 100%;
-            height: 100%;
-            padding: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s ease-in-out, padding 0.3s ease;
-            transform-origin: bottom left;
+            position: absolute;
+            width: 90vw;
+            height: 85vh;
+            max-width: 1024px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex; /* Use flex to contain the terminal */
+            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s ease-in-out, width 0.3s ease, height 0.3s ease;
         }
-        @media (min-width: 640px) {
-            #terminal-wrapper {
-                padding: 2rem;
-            }
+        #terminal-wrapper.loading {
+            transform: translate(-50%, -50%) scale(0.95);
+            opacity: 0;
+        }
+        #terminal-wrapper.dragging {
+            transition: none; /* Disable transition during drag */
         }
         #terminal-wrapper.minimized {
             transform: scale(0.05) translateY(100vh);
@@ -102,7 +107,12 @@
             pointer-events: none;
         }
         #terminal-wrapper.maximized {
-            padding: 0;
+            width: 100vw;
+            height: 100vh;
+            max-width: none;
+            top: 0 !important;
+            left: 0 !important;
+            transform: none !important; /* Important to override drag transforms */
         }
         #terminal {
             background-color: var(--window-bg);
@@ -110,20 +120,19 @@
             box-shadow: 0 4px 25px var(--shadow-color);
             width: 100%;
             height: 100%;
-            max-width: 1024px;
             border-radius: 0.5rem;
             transition: width 0.3s ease, height 0.3s ease, max-width 0.3s ease, border-radius 0.3s ease;
         }
         #terminal-wrapper.maximized #terminal {
-            width: 100%;
-            height: 100%;
-            max-width: none;
             border-radius: 0;
             border: none;
         }
         
-        #hidden-message, #goodbye-message {
+        #goodbye-message {
             position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             font-size: 2rem;
             font-weight: bold;
             color: var(--prompt-color);
@@ -133,7 +142,7 @@
             text-align: center;
             padding: 1rem;
         }
-        #hidden-message.visible, #goodbye-message.visible {
+        #goodbye-message.visible {
             opacity: 1;
         }
         #dock {
@@ -168,15 +177,73 @@
             height: 32px;
             color: var(--prompt-color);
         }
+
+        /* VIM and HTOP Styles */
+        .vim-editor, .htop-display {
+            position: absolute;
+            top: 41px; /* Height of header */
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: var(--vim-bg);
+            color: var(--vim-text);
+            font-family: 'Fira Code', monospace;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .vim-content-wrapper {
+             flex-grow: 1;
+             overflow: auto; /* Changed to auto for both scrollbars */
+             padding: 0.5rem;
+        }
+        .vim-content {
+            display: flex;
+            white-space: pre;
+        }
+        .vim-line-numbers {
+            color: var(--vim-line-num);
+            padding-right: 1rem;
+            text-align: right;
+            user-select: none;
+        }
+        .vim-cursor {
+            background-color: var(--vim-cursor-bg);
+            color: var(--vim-cursor-text);
+        }
+        .vim-visual-selection {
+            background-color: var(--vim-visual-bg);
+        }
+        .vim-status-bar {
+            background-color: var(--vim-status-bg);
+            padding: 0.25rem 0.5rem;
+            display: flex;
+            justify-content: space-between;
+            flex-shrink: 0;
+        }
+        .htop-display {
+            padding: 0.5rem;
+            white-space: pre;
+            overflow: hidden;
+        }
+        .vim-command-cursor {
+            display: inline-block;
+            width: 0.5em;
+            background-color: var(--vim-text);
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink {
+            from, to { opacity: 1; }
+            50% { opacity: 0; }
+        }
     </style>
 </head>
 <body class="bg-custom-bg text-custom-text font-sans antialiased">
 
-    <div id="hidden-message">Oops, you weren't supposed to see this!</div>
     <div id="goodbye-message">Goodbye! Refresh to start over.</div>
 
-    <div id="terminal-wrapper">
-        <div id="terminal" class="flex flex-col overflow-hidden">
+    <div id="terminal-wrapper" class="loading">
+        <div id="terminal" class="flex flex-col overflow-hidden relative">
             <div class="bg-custom-header flex items-center px-4 py-2 border-b border-custom-border select-none cursor-grab active:cursor-grabbing">
                 <div class="flex space-x-2">
                     <div id="close-btn" class="w-3 h-3 rounded-full bg-red-500 cursor-pointer"></div>
@@ -186,6 +253,7 @@
                 <div class="text-center text-sm flex-grow text-gray-400">guest@EmilysPortfolio: ~</div>
             </div>
             <div id="terminalBody" class="terminal-body flex-grow p-4 overflow-y-auto text-sm" onclick="document.getElementById('commandInput')?.focus();"></div>
+            <!-- Vim and Htop will be injected here -->
         </div>
     </div>
 
@@ -200,8 +268,9 @@
 <script>
 
 // ###################################################################
-// ###############   CORE LOGIC (with modifications) #################
+// ###############    CORE LOGIC (with modifications) ################
 // ###################################################################
+const terminal = document.getElementById('terminal');
 const terminalBody = document.getElementById('terminalBody');
 const user = "guest";
 const host = "EmilysPortfolio.dev";
@@ -210,6 +279,7 @@ let currentPath = [];
 let commandHistory = [];
 let historyIndex = -1;
 let terminalActive = true;
+let activeProcess = null; // To block terminal input during htop/vim
 
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
@@ -250,7 +320,7 @@ function getPathString() { return '~/' + currentPath.join('/'); }
 
 // --- COMMAND HANDLERS ---
 const commandHandlers = {
-    'help': () => `Available commands:<br><br><div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1">${['help', 'clear', 'ls', 'cd', 'cat', 'pwd', 'who', 'python', 'exit'].sort().map(c => `<span>${c}</span>`).join('')}</div>`,
+    'help': () => `Available commands:<br><br><div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1">${['help', 'clear', 'ls', 'cd', 'cat', 'pwd', 'who', 'python', 'exit', 'htop', 'vim', 'screenfetch', 'history', 'open'].sort().map(c => `<span>${c}</span>`).join('')}</div>`,
     'clear': () => { terminalBody.innerHTML = ''; return ''; },
     'pwd': () => getPathString(),
     'who': () => `Logged in as: ${user}<br>This portfolio belongs to Emily Boudreaux, a computational astrophysicist.`,
@@ -329,6 +399,470 @@ const commandHandlers = {
             terminalBody.scrollTop = terminalBody.scrollHeight;
         }
         return '';
+    },
+    'htop': async () => {
+        return new Promise(resolve => {
+            activeProcess = 'htop';
+            const htopDisplay = document.createElement('div');
+            htopDisplay.className = 'htop-display';
+            terminal.appendChild(htopDisplay);
+
+            let running = true;
+            let scrollOffset = 0;
+
+            const processes = [
+                '1337 20   0 1.2G 512M 24.5 S  12.5  8.0  1:35.12 /bin/procrastinate --on-paper',
+                '2048 20   0 2.5G 1.8G  1.1 S   8.2  4.5 12:05.53 python3 calculate_opacity.py --grid=massive',
+                '2049 20   0 812M 256M 98.0 R   5.5  2.1  0:45.19 zsh -c "re-run_failed_sim.sh"',
+                '3141 20   0 512M 128M  0.0 S   2.1  1.0  0:12.88 gdb ./a.out -c core.dump.1337',
+                '1    20   0 128M  12M  0.0 S   0.0  0.1  0:02.11 /sbin/init splash',
+                '2    20   0    0    0  0.0 S   0.0  0.0  0:00.01 [kthreadd]',
+                '3    20   0    0    0  0.0 S   0.0  0.0  0:01.34 [rcu_gp]',
+                '4    20   0    0    0  0.0 S   0.0  0.0  0:00.00 [rcu_par_gp]',
+                '5    20   0    0    0  0.0 S   0.0  0.0  1:10.21 [kworker/0:0H-kblockd]',
+                '6    20   0    0    0  0.0 S   0.0  0.0  0:05.11 [mm_percpu_wq]',
+                '7    20   0    0    0  0.0 S   0.0  0.0  0:00.23 [ksoftirqd/0]',
+                '8    20   0    0    0  0.0 S   0.0  0.0  3:45.01 [rcu_sched]',
+                '9    20   0    0    0  0.0 S   0.0  0.0  0:00.00 [migration/0]',
+                '10   20   0    0    0  0.0 S   0.0  0.0  0:00.00 [idle_inject/0]',
+                '11   20   0    0    0  0.0 S   0.0  0.0  0:00.00 [cpuhp/0]',
+                '42   20   0 1.1G 800M 15.0 S   1.0  6.5  2:22.42 /usr/bin/firefox',
+                '123  20   0 256M  64M  0.0 S   0.5  0.5  0:05.67 [kworker/u1:1]-grid_refinement_daemon',
+                '321  20   0 128M  32M  0.0 S   0.2  0.2  0:01.23 ./boundary_lf_normal_integrator',
+            ];
+
+            const generateBar = (label, value, color) => {
+                const width = 40;
+                const filledCount = Math.round((value / 100) * width);
+                const barText = ('|'.repeat(filledCount)).padEnd(width, ' ');
+                return `${label.padEnd(15)}[<span style="color:${color};">${barText}</span>] ${value.toFixed(1)}%`;
+            };
+
+            const intervalId = setInterval(() => {
+                if (!running) return;
+                const caffeine = 50 + Math.sin(Date.now() / 2000) * 40 + 10;
+                const stress = 60 + Math.cos(Date.now() / 3500) * 35 + 5;
+                const anxiety = 40 + Math.sin(Date.now() / 1500) * 20 * Math.cos(Date.now() / 500) * 2;
+
+                const contentLines = [];
+                contentLines.push(`<span style="color:#7dcfff;">1 </span> ${generateBar('Caffeine Intake', caffeine, '#7aa2f7')}`);
+                contentLines.push(`<span style="color:#7dcfff;">2 </span> ${generateBar('Mental Stress', stress, '#f7768e')}`);
+                contentLines.push(`<span style="color:#7dcfff;">3 </span> ${generateBar('Anxiety', anxiety, '#e0af68')}`);
+                contentLines.push(`<span style="font-weight:bold;">  PID  USER      PR  NI    VIRT    RES   SHR S  %CPU  %MEM     TIME+ COMMAND</span>`);
+
+                scrollOffset = (scrollOffset + 0.2) % processes.length;
+                for (let i = 0; i < 10; i++) {
+                    const index = (Math.floor(scrollOffset) + i) % processes.length;
+                    contentLines.push(processes[index]);
+                }
+                contentLines.push(`\n<span style="background-color: var(--vim-status-bg); color: var(--vim-text); padding: 0 0.5rem;">F1Help  F2Setup F3SearchF4FilterF5Tree  F6SortByF7Nice -F8Nice +F9Kill  F10Quit (or q)</span>`);
+                
+                htopDisplay.innerHTML = contentLines.join('\n');
+            }, 100);
+
+            const keydownHandler = (e) => {
+                if (e.key === 'q' || e.key === 'Q' || e.key === 'F10') {
+                    running = false;
+                    clearInterval(intervalId);
+                    htopDisplay.remove();
+                    document.removeEventListener('keydown', keydownHandler);
+                    activeProcess = null;
+                    resolve('');
+                }
+            };
+            document.addEventListener('keydown', keydownHandler);
+        });
+    },
+    'vim': async (args) => {
+        return new Promise(resolve => {
+            activeProcess = 'vim';
+            const vimEditor = document.createElement('div');
+            vimEditor.className = 'vim-editor';
+            
+            const vimState = {
+                lines: [],
+                fileName: args[0] || "[No Name]",
+                isNewFile: false,
+                cursor: { row: 0, col: 0 },
+                mode: 'normal', // 'normal', 'command', 'visual'
+                visual: { start: null },
+                commandLineText: '',
+                statusMessage: '',
+                statusTimeout: null,
+                pendingG: false,
+                pendingGTimeout: null,
+            };
+            
+            // --- File Loading ---
+            const filename = args[0];
+            if (filename) {
+                const { node } = resolvePath(filename);
+                if (node && node.type === 'file') {
+                    vimState.lines = node.content.split('\n');
+                } else if (node && node.type === 'dir') {
+                    vimEditor.remove();
+                    activeProcess = null;
+                    resolve(`<span class="text-custom-error">vim: "${filename}" is a directory</span>`);
+                    return;
+                } else {
+                    vimState.lines = [''];
+                    vimState.isNewFile = true;
+                }
+            } else {
+                vimState.lines = ['~'];
+            }
+            if(vimState.lines.length === 0) vimState.lines = [''];
+
+
+            // --- Rendering ---
+            const renderVim = () => {
+                const lineNumbersHTML = vimState.lines.map((_, i) => `${i + 1}`.padStart(3)).join('\n');
+                
+                const codeHTML = vimState.lines.map((line, r) => {
+                    let lineHTML = '';
+                    const chars = line.split('');
+                    for(let c = 0; c < chars.length + 1; c++) {
+                        let char = chars[c] || ' ';
+                        let isCursor = (r === vimState.cursor.row && c === vimState.cursor.col);
+                        let isSelected = false;
+
+                        if (vimState.mode === 'visual') {
+                            const { start } = vimState.visual;
+                            const end = vimState.cursor;
+                            const [selStart, selEnd] = (start.row < end.row || (start.row === end.row && start.col <= end.col))
+                                ? [start, end] : [end, start];
+
+                            if (r > selStart.row && r < selEnd.row) {
+                                isSelected = true;
+                            } else if (r === selStart.row && r === selEnd.row) {
+                                if (c >= selStart.col && c < selEnd.col) isSelected = true;
+                            } else if (r === selStart.row && c >= selStart.col) {
+                                isSelected = true;
+                            } else if (r === selEnd.row && c < selEnd.col) {
+                                isSelected = true;
+                            }
+                        }
+                        
+                        char = char.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                        let classes = '';
+                        if(isCursor) classes += ' vim-cursor';
+                        if(isSelected) classes += ' vim-visual-selection';
+
+                        lineHTML += classes ? `<span class="${classes.trim()}">${char}</span>` : char;
+                    }
+                    return lineHTML;
+                }).join('\n');
+
+                let statusLeft, statusRight;
+                if (vimState.mode === 'command') {
+                    statusLeft = `<span class="font-bold">${vimState.commandLineText}</span><span class="vim-command-cursor">&nbsp;</span>`;
+                    statusRight = '';
+                } else if (vimState.statusMessage) {
+                    statusLeft = `<span class="font-bold">${vimState.statusMessage}</span>`;
+                    statusRight = '';
+                } else if (vimState.mode === 'visual') {
+                    statusLeft = `<span class="font-bold">-- VISUAL --</span>`;
+                    statusRight = '';
+                }
+                else {
+                    statusLeft = `"${vimState.fileName}" ${vimState.isNewFile ? '[New File]' : ''} [READONLY]`;
+                    statusRight = `${vimState.cursor.row + 1},${vimState.cursor.col + 1}`;
+                }
+
+                vimEditor.innerHTML = `
+                    <div class="vim-content-wrapper">
+                        <div class="vim-content">
+                            <div class="vim-line-numbers">${lineNumbersHTML}</div>
+                            <div class="vim-code-content">${codeHTML}</div>
+                        </div>
+                    </div>
+                    <div class="vim-status-bar">
+                        <span>${statusLeft}</span>
+                        <span>${statusRight}</span>
+                    </div>`;
+                
+                // --- Auto Scrolling ---
+                const wrapper = vimEditor.querySelector('.vim-content-wrapper');
+                const cursorEl = vimEditor.querySelector('.vim-cursor');
+                if (wrapper && cursorEl) {
+                    const cursorRect = cursorEl.getBoundingClientRect();
+                    const wrapperRect = wrapper.getBoundingClientRect();
+                    
+                    // Vertical scroll
+                    if (cursorRect.bottom > wrapperRect.bottom) {
+                        wrapper.scrollTop += cursorRect.bottom - wrapperRect.bottom;
+                    } else if (cursorRect.top < wrapperRect.top) {
+                        wrapper.scrollTop -= wrapperRect.top - cursorRect.top;
+                    }
+                    
+                    // Horizontal scroll
+                    if (cursorRect.right > wrapperRect.right) {
+                        wrapper.scrollLeft += cursorRect.right - wrapperRect.right;
+                    } else if (cursorRect.left < wrapperRect.left) {
+                        wrapper.scrollLeft -= wrapperRect.left - cursorRect.left;
+                    }
+                }
+            };
+
+            // --- Input Handling & Motions ---
+            const showStatusMessage = (msg, duration = 2000) => {
+                vimState.statusMessage = msg;
+                clearTimeout(vimState.statusTimeout);
+                vimState.statusTimeout = setTimeout(() => {
+                    vimState.statusMessage = '';
+                    renderVim();
+                }, duration);
+                renderVim();
+            };
+
+            const clampCursor = () => {
+                const { cursor, lines } = vimState;
+                cursor.row = Math.max(0, Math.min(lines.length - 1, cursor.row));
+                const lineLen = lines[cursor.row].length;
+                cursor.col = Math.max(0, Math.min(lineLen > 0 ? lineLen - 1 : 0, cursor.col));
+            };
+
+            const findNextWord = (row, col) => {
+                const line = vimState.lines[row];
+                const match = line.substring(col + 1).match(/\w+/);
+                return match ? col + 1 + match.index : null;
+            };
+
+            const findPrevWord = (row, col) => {
+                 const line = vimState.lines[row];
+                 const matches = [...line.substring(0, col).matchAll(/\w+/g)];
+                 return matches.length > 0 ? matches[matches.length - 1].index : null;
+            }
+
+            const copyToClipboard = (text) => {
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                try {
+                    document.execCommand('copy');
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                }
+                document.body.removeChild(textarea);
+            };
+
+            const resetPendingG = () => {
+                if (vimState.pendingGTimeout) clearTimeout(vimState.pendingGTimeout);
+                vimState.pendingG = false;
+                vimState.pendingGTimeout = null;
+            }
+
+            const keydownHandler = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+
+                const { cursor, lines, mode } = vimState;
+                let keyHandled = true;
+
+                if (mode === 'normal' || mode === 'visual') {
+                    switch (e.key) {
+                        case 'ArrowUp': case 'k': cursor.row--; break;
+                        case 'ArrowDown': case 'j': cursor.row++; break;
+                        case 'ArrowLeft': case 'h': cursor.col--; break;
+                        case 'ArrowRight': case 'l': cursor.col++; break;
+                        case 'w': {
+                            const nextPos = findNextWord(cursor.row, cursor.col);
+                            if (nextPos !== null) cursor.col = nextPos;
+                            else if(cursor.row < lines.length - 1) {
+                                cursor.row++;
+                                cursor.col = 0;
+                            }
+                            break;
+                        }
+                        case 'b': {
+                            const prevPos = findPrevWord(cursor.row, cursor.col);
+                            if(prevPos !== null) cursor.col = prevPos;
+                            else if (cursor.row > 0) {
+                                cursor.row--;
+                                cursor.col = Math.max(0, lines[cursor.row].length - 1);
+                            }
+                            break;
+                        }
+                        case '0': cursor.col = 0; break;
+                        case '$': cursor.col = Math.max(0, lines[cursor.row].length - 1); break;
+                        case '_': {
+                            const firstCharIndex = lines[cursor.row].search(/\S/);
+                            cursor.col = firstCharIndex === -1 ? 0 : firstCharIndex;
+                            break;
+                        }
+                        case 'g':
+                            if (vimState.pendingG) {
+                                cursor.row = 0;
+                                const firstCharIndex = lines[0].search(/\S/);
+                                cursor.col = firstCharIndex === -1 ? 0 : firstCharIndex;
+                                resetPendingG();
+                            } else {
+                                vimState.pendingG = true;
+                                vimState.pendingGTimeout = setTimeout(resetPendingG, 400);
+                            }
+                            break;
+                        case 'G':
+                            cursor.row = lines.length - 1;
+                            const lastLine = lines[cursor.row];
+                            const firstCharIndex = lastLine.search(/\S/);
+                            cursor.col = firstCharIndex === -1 ? 0 : firstCharIndex;
+                            break;
+                        case ':': vimState.mode = 'command'; vimState.commandLineText = ':'; break;
+                        case 'v': 
+                            if(mode === 'normal') {
+                                vimState.mode = 'visual';
+                                vimState.visual.start = { ...cursor };
+                            } else {
+                                vimState.mode = 'normal';
+                            }
+                            break;
+                        case 'y':
+                            if (mode === 'visual') {
+                                const { start } = vimState.visual;
+                                const end = vimState.cursor;
+                                const [selStart, selEnd] = (start.row < end.row || (start.row === end.row && start.col <= end.col))
+                                    ? [start, end] : [end, start];
+                                
+                                let textToCopy = '';
+                                let linesYanked = 0;
+                                for (let r = selStart.row; r <= selEnd.row; r++) {
+                                    const line = lines[r];
+                                    const startCol = (r === selStart.row) ? selStart.col : 0;
+                                    const endCol = (r === selEnd.row) ? selEnd.col : line.length;
+                                    textToCopy += line.substring(startCol, endCol) + '\n';
+                                    linesYanked++;
+                                }
+                                textToCopy = textToCopy.trimEnd();
+                                copyToClipboard(textToCopy);
+                                vimState.mode = 'normal';
+                                showStatusMessage(`${linesYanked} line${linesYanked > 1 ? 's' : ''} yanked`);
+                            }
+                            break;
+                        case 'Escape': vimState.mode = 'normal'; break;
+                        case 'i': case 'a': case 'o': case 'I': case 'A': case 'O':
+                            showStatusMessage('-- READ-ONLY MODE --');
+                            break;
+                        default: keyHandled = false; break;
+                    }
+                    if (keyHandled && e.key !== 'g') {
+                        resetPendingG();
+                    }
+                    clampCursor();
+
+                } else if (mode === 'command') {
+                    switch (e.key) {
+                        case 'Enter':
+                            if ([':q', ':wq', ':x', ':q!'].includes(vimState.commandLineText)) {
+                                clearTimeout(vimState.statusTimeout);
+                                vimEditor.remove();
+                                document.removeEventListener('keydown', keydownHandler);
+                                activeProcess = null;
+                                resolve('');
+                            } else {
+                                showStatusMessage(`Not an editor command: ${vimState.commandLineText}`);
+                                vimState.mode = 'normal';
+                                vimState.commandLineText = '';
+                            }
+                            break;
+                        case 'Escape':
+                            vimState.mode = 'normal';
+                            vimState.commandLineText = '';
+                            break;
+                        case 'Backspace':
+                            if (vimState.commandLineText.length > 1) {
+                                vimState.commandLineText = vimState.commandLineText.slice(0, -1);
+                            }
+                            break;
+                        default:
+                            if (e.key.length === 1 && !e.ctrlKey && !e.altKey) {
+                                vimState.commandLineText += e.key;
+                            }
+                    }
+                }
+                renderVim();
+            };
+            
+            document.addEventListener('keydown', keydownHandler);
+            terminal.appendChild(vimEditor);
+            renderVim();
+        });
+    },
+    'screenfetch': async () => {
+        const asciiArt = [
+            '       <span style="color:#7aa2f7">-::-</span>       ',
+            '    <span style="color:#7aa2f7">.:-====-:.</span>    ',
+            '  <span style="color:#7aa2f7">:-=</span><span style="color:#bb9af7">**#**#**</span><span style="color:#7aa2f7">=-:</span>  ',
+            ' <span style="color:#7aa2f7">:=+</span><span style="color:#bb9af7">*#*+==+*#*</span><span style="color:#7aa2f7">+:=</span> ',
+            ' <span style="color:#7aa2f7">:=+</span><span style="color:#bb9af7">*#*+==+*#*</span><span style="color:#7aa2f7">+:=</span> ',
+            '  <span style="color:#7aa2f7">:-=</span><span style="color:#bb9af7">**#**#**</span><span style="color:#7aa2f7">=-:</span>  ',
+            '    <span style="color:#7aa2f7">.:-====-:.</span>    ',
+            '       <span style="color:#7aa2f7">-::-</span>       ',
+            '                  ',
+        ];
+        
+        const birthDate = new Date('1997-06-07T00:00:00');
+        const now = new Date();
+        const diffMs = now.getTime() - birthDate.getTime();
+        const diffDate = new Date(diffMs);
+        const years = diffDate.getUTCFullYear() - 1970;
+        const days = Math.floor((diffMs % (1000 * 60 * 60 * 24 * 365.25)) / (1000 * 60 * 60 * 24));
+        const uptime = `${years} years, ${days} days`;
+
+        const memUsed = Math.floor(Math.random() * 20000) + 8000;
+        const memTotal = 64384;
+
+        const info = [
+            { key: 'OS', value: 'EmilyOS x86_64' },
+            { key: 'Host', value: 'SMBH Sim 1.0' },
+            { key: 'Kernel', value: '5.4.0-custom-rt' },
+            { key: 'Uptime', value: uptime },
+            { key: 'Shell', value: 'hsh' },
+            { key: 'Resolution', value: `${window.innerWidth}x${window.innerHeight}` },
+            { key: 'CPU', value: 'AMD Threadripper (Emulated)' },
+            { key: 'GPU', value: 'NVIDIA RTX A6000 (Imagined)' },
+            { key: 'Memory', value: `${memUsed}MiB / ${memTotal}MiB` },
+        ];
+        
+        let output = '<div class="whitespace-pre font-mono">';
+        const maxLines = Math.max(asciiArt.length, info.length);
+        
+        for (let i = 0; i < maxLines; i++) {
+            const artLine = asciiArt[i] || ' '.repeat(18);
+            let infoLine = '';
+            if (info[i]) {
+                infoLine = `<span class="text-custom-prompt font-bold">${info[i].key}:</span> ${info[i].value}`;
+            }
+            output += `${artLine}  ${infoLine}\n`;
+        }
+        output += '</div>';
+        return output;
+    },
+    'history': () => {
+        if (commandHistory.length === 0) return '';
+        // commandHistory is in reverse chronological order, so we reverse a copy for display
+        return commandHistory.slice(0).reverse().map((cmd, i) => {
+            const escapedCmd = cmd.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            return `  <span style="width: 3rem; display: inline-block; text-align: right; margin-right: 1rem;">${i + 1}</span>${escapedCmd}`;
+        }).join('<br>');
+    },
+    'open': (args) => {
+        const filename = args[0];
+        if (!filename) return 'Usage: open <some.url>';
+        const { node } = resolvePath(filename);
+        if (!node) return `<span class="text-custom-error">open: ${filename}: No such file or directory</span>`;
+        if (node.type === 'dir') return `<span class="text-custom-error">open: ${filename}: Is a directory</span>`;
+
+        const url = node.content.trim();
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+            window.open(url, '_blank');
+            return `Opening ${url}...`;
+        } else {
+            return `<span class="text-custom-error">open: content of ${filename} is not a valid URL.</span>`;
+        }
+    },
+    'sudo': (args) => {
+        return `<span class="text-custom-error">${user} is not in the sudoers file. This incident will be reported.</span>`;
     }
 };
 
@@ -360,16 +894,17 @@ async function executeCommand(fullCommand) {
         output = `<span class="text-custom-error">command not found: ${command}</span>`;
     }
     
-    if (output) {
+    if (output !== null && output !== undefined) {
         appendOutput(output);
     }
 
-    if (terminalActive) {
+    if (terminalActive && !activeProcess) {
         createNewPrompt();
     }
 }
 
 function appendOutput(html) {
+    if (!html) return;
     const outputLine = document.createElement('div');
     outputLine.classList.add('output', 'mt-1', 'mb-4');
     outputLine.innerHTML = html;
@@ -378,7 +913,7 @@ function appendOutput(html) {
 }
 
 function createNewPrompt(initialValue = '') {
-    if (!terminalActive) return;
+    if (!terminalActive || activeProcess) return;
     const promptLine = document.createElement('div');
     promptLine.id = 'prompt-line-container';
     promptLine.classList.add('prompt-line', 'flex', 'items-start');
@@ -393,7 +928,7 @@ function createNewPrompt(initialValue = '') {
 }
 
 function handleKeydown(e) {
-    if (!terminalActive) {
+    if (!terminalActive || activeProcess) {
         e.preventDefault();
         return;
     }
@@ -455,48 +990,101 @@ function handleTabCompletion(inputField) {
     }
 }
 
-// --- WINDOW CONTROLS & MOBILE ADAPTATIONS ---
+// --- WINDOW CONTROLS & DRAGGING ---
+function initDraggableWindow() {
+    const terminalWrapper = document.getElementById('terminal-wrapper');
+    const header = document.querySelector('.bg-custom-header');
+    let isDragging = false;
+    let startX, startY;
+    let initialLeft, initialTop;
+
+    header.addEventListener('mousedown', (e) => {
+        if (e.target.id.endsWith('-btn') || terminalWrapper.classList.contains('maximized')) {
+            return;
+        }
+        isDragging = true;
+        terminalWrapper.classList.add('dragging');
+
+        // Get the actual computed position to prevent the initial jump
+        const rect = terminalWrapper.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        // Set the style to this explicit position before dragging starts
+        terminalWrapper.style.left = `${initialLeft}px`;
+        terminalWrapper.style.top = `${initialTop}px`;
+        terminalWrapper.style.transform = 'none';
+
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    });
+
+    function onMouseMove(e) {
+        if (!isDragging) return;
+        const deltaX = e.clientX - startX;
+        const deltaY = e.clientY - startY;
+        terminalWrapper.style.left = `${initialLeft + deltaX}px`;
+        terminalWrapper.style.top = `${initialTop + deltaY}px`;
+    }
+
+    function onMouseUp() {
+        isDragging = false;
+        terminalWrapper.classList.remove('dragging');
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+    }
+}
+
 function setupWindowControls() {
     const closeBtn = document.getElementById('close-btn');
     const minimizeBtn = document.getElementById('minimize-btn');
     const maximizeBtn = document.getElementById('maximize-btn');
     const terminalWrapper = document.getElementById('terminal-wrapper');
-    const hiddenMessage = document.getElementById('hidden-message');
     const goodbyeMessage = document.getElementById('goodbye-message');
     const dockIcon = document.getElementById('dock-icon');
+    let lastPosition = { top: '', left: '', transform: ''};
 
-    // Close button
     closeBtn.addEventListener('click', () => {
         terminalActive = false;
         terminalWrapper.classList.add('closed');
         goodbyeMessage.classList.add('visible');
     });
 
-    // Minimize button
     minimizeBtn.addEventListener('click', () => {
         terminalWrapper.classList.add('minimized');
-        hiddenMessage.classList.add('visible');
         dockIcon.classList.add('visible');
     });
 
-    // Restore from dock
     dockIcon.addEventListener('click', () => {
         terminalWrapper.classList.remove('minimized');
-        hiddenMessage.classList.remove('visible');
         dockIcon.classList.remove('visible');
         setTimeout(() => document.getElementById('commandInput')?.focus(), 100);
     });
 
-    // Maximize button (in-page)
     maximizeBtn.addEventListener('click', () => {
-        terminalWrapper.classList.toggle('maximized');
+        if (terminalWrapper.classList.contains('maximized')) {
+            terminalWrapper.classList.remove('maximized');
+            terminalWrapper.style.top = lastPosition.top;
+            terminalWrapper.style.left = lastPosition.left;
+            terminalWrapper.style.transform = lastPosition.transform;
+        } else {
+            // Save the current state before maximizing
+            const rect = terminalWrapper.getBoundingClientRect();
+            lastPosition.top = `${rect.top}px`;
+            lastPosition.left = `${rect.left}px`;
+            lastPosition.transform = 'none'; // Since we are now using top/left
+            terminalWrapper.classList.add('maximized');
+        }
     });
 
-    // Mobile keyboard handler
     if (window.visualViewport) {
         const initialHeight = window.visualViewport.height;
         window.visualViewport.addEventListener('resize', () => {
-            // This attempts to only trigger for keyboard, not just window resize
             if (window.visualViewport.height < initialHeight * 0.9) {
                  document.body.style.height = `${window.visualViewport.height}px`;
                  document.getElementById('commandInput')?.scrollIntoView();
@@ -507,11 +1095,29 @@ function setupWindowControls() {
     }
 }
 
+function bakeInitialPosition() {
+    const terminalWrapper = document.getElementById('terminal-wrapper');
+    // Remove the loading class to trigger the fade-in animation
+    terminalWrapper.classList.remove('loading');
+    
+    // After the animation, set the position explicitly to prevent conflicts
+    setTimeout(() => {
+        if (terminalWrapper.classList.contains('maximized') || terminalWrapper.classList.contains('minimized')) return;
+        const rect = terminalWrapper.getBoundingClientRect();
+        terminalWrapper.style.left = `${rect.left}px`;
+        terminalWrapper.style.top = `${rect.top}px`;
+        terminalWrapper.style.transform = 'none';
+    }, 400); // Match the transition duration
+}
+
 // --- INITIALIZATION ---
 function init() {
-    appendOutput(`Welcome! Type 'help' to see the list of available commands.<br>Try running 'python projects/mplEasyAnimate/makeAnimation.py' to see an emulated execution.`);
+    appendOutput(`Welcome! Type 'help' to see the list of available commands.<br>Try 'screenfetch' or 'htop' for a bit of fun.`);
     createNewPrompt();
     setupWindowControls();
+    initDraggableWindow();
+    // Use a small timeout to ensure the browser has rendered the initial state
+    setTimeout(bakeInitialPosition, 10);
 }
 
 // Start the application
