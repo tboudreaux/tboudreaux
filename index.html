@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emily's Portfolio - Interactive Shell</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Markdown & Sanitizer Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@2.3.8/dist/purify.min.js"></script>
+    <script src="fileSystem.js"></script>
+    <style>
+        :root {
+            /* Dark Mode (Default) - Tokyo Night Theme */
+            --bg-color: #1a1b26; --window-bg: #24283b; --text-color: #c0caf5;
+            --prompt-color: #7aa2f7; --command-color: #bb9af7; --output-color: #c0caf5;
+            --header-bg: #1f2335; --border-color: #414868; --shadow-color: rgba(0, 0, 0, 0.5);
+            --cursor-color: #c0caf5; --error-color: #f7768e; --link-color: #7dcfff;
+            --pager-bg: rgba(0,0,0,0.1); --pager-border: #414868; --pager-header: #bb9af7;
+            --table-header-bg: #1f2335;
+        }
+        @media (prefers-color-scheme: light) {
+            /* Light Mode */
+            :root {
+                --bg-color: #f0f0f0; --window-bg: #ffffff; --text-color: #333333;
+                --prompt-color: #1a73e8; --command-color: #333333; --output-color: #333333;
+                --header-bg: #e0e0e0; --border-color: #cccccc; --shadow-color: rgba(0, 0, 0, 0.2);
+                --cursor-color: #333333; --error-color: #d93025; --link-color: #1a73e8;
+                --pager-bg: #f8f9fa; --pager-border: #e0e0e0; --pager-header: #1a73e8;
+                --table-header-bg: #f1f3f5;
+            }
+        }
+        .terminal-body, .command-input { font-family: 'Fira Code', monospace; }
+        .command-input { background: transparent; border: none; outline: none; box-shadow: none; color: var(--command-color); caret-color: var(--cursor-color); padding: 0; margin: 0; }
+        .command-input:focus { outline: none; box-shadow: none; }
+        .terminal-body::-webkit-scrollbar { width: 8px; }
+        .terminal-body::-webkit-scrollbar-track { background: var(--window-bg); }
+        .terminal-body::-webkit-scrollbar-thumb { background-color: var(--header-bg); border-radius: 4px; border: 2px solid var(--window-bg); }
+        .bg-custom-bg { background-color: var(--bg-color); }
+        .bg-custom-window { background-color: var(--window-bg); }
+        .text-custom-text { color: var(--text-color); }
+        .text-custom-prompt { color: var(--prompt-color); }
+        .bg-custom-header { background-color: var(--header-bg); }
+        .border-custom-border { border-color: var(--border-color); }
+        .shadow-custom { box-shadow: 0 4px 25px var(--shadow-color); }
+        .text-custom-output { color: var(--output-color); }
+        .text-custom-error { color: var(--error-color); }
+        .text-custom-link { color: var(--link-color); }
+        .pager-output { background-color: var(--pager-bg); border: 1px solid var(--pager-border); border-radius: 8px; padding: 1rem; margin-top: 0.5rem; font-family: 'Inter', sans-serif; line-height: 1.6; }
+        .pager-output h1, .pager-output h2, .pager-output h3 { font-weight: bold; color: var(--pager-header); margin-bottom: 0.75rem; }
+        .pager-output h1 { font-size: 1.5rem; } .pager-output h2 { font-size: 1.25rem; } .pager-output h3 { font-size: 1.1rem; }
+        .pager-output p, .pager-output ul, .pager-output ol { margin-bottom: 1rem; }
+        .pager-output a { color: var(--link-color); text-decoration: underline; }
+        .pager-output ul, .pager-output ol { padding-left: 1.5rem; }
+        .pager-output li { margin-bottom: 0.25rem; }
+        .pager-output code { background-color: var(--header-bg); padding: 0.2rem 0.4rem; border-radius: 4px; font-family: 'Fira Code', monospace; font-size: 0.9em; }
+        .pager-output pre { background-color: var(--header-bg); padding: 1rem; border-radius: 8px; margin-bottom: 1rem; overflow-x: auto; }
+        .pager-output pre code { padding: 0; background: none; }
+        .pager-output table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+        .pager-output th, .pager-output td { border: 1px solid var(--pager-border); padding: 0.5rem 0.75rem; text-align: left; }
+        .pager-output th { background-color: var(--table-header-bg); font-weight: bold; }
+        .pager-output img { max-width: 100%; border-radius: 8px; margin-top: 0.5rem; }
+    </style>
+</head>
+<body class="bg-custom-bg text-custom-text font-sans antialiased">
+
+    <div id="terminal" class="bg-custom-window border-custom-border shadow-custom flex flex-col w-full max-w-4xl mx-auto my-8 rounded-lg border h-[90vh] min-h-[500px] overflow-hidden">
+        <div class="bg-custom-header flex items-center px-4 py-2 border-b border-custom-border select-none">
+            <div class="flex space-x-2"><div class="w-3 h-3 rounded-full bg-red-500"></div><div class="w-3 h-3 rounded-full bg-yellow-500"></div><div class="w-3 h-3 rounded-full bg-green-500"></div></div>
+            <div class="text-center text-sm flex-grow text-gray-400">guest@EmilysPortfolio: ~</div>
+        </div>
+        <div id="terminalBody" class="terminal-body flex-grow p-4 overflow-y-auto text-sm" onclick="document.getElementById('commandInput')?.focus();"></div>
+    </div>
+
+<script>
+// ###################################################################
+// ###############   CORE LOGIC (No need to edit below)  #############
+// ###################################################################
+const terminalBody = document.getElementById('terminalBody');
+const user = "guest";
+const host = "EmilysPortfolio.dev";
+
+let currentPath = [];
+let commandHistory = [];
+let historyIndex = -1;
+
+// --- FILE SYSTEM UTILITIES ---
+function resolvePath(pathStr) {
+    let pathParts;
+    if (pathStr.startsWith('/')) {
+        pathParts = pathStr.substring(1).split('/').filter(p => p);
+    } else {
+        pathParts = (currentPath.join('/') + '/' + pathStr).split('/').filter(p => p);
+    }
+    let resolvedPath = [];
+    for (const part of pathParts) {
+        if (part === '..') {
+            if (resolvedPath.length > 0) resolvedPath.pop();
+        } else if (part !== '.') {
+            resolvedPath.push(part);
+        }
+    }
+    return { node: getNodeFromPath(resolvedPath), path: resolvedPath };
+}
+
+function getNodeFromPath(pathArray) {
+    let currentNode = fileSystem;
+    for (const part of pathArray) {
+        if (currentNode && currentNode.type === 'dir' && currentNode.children[part]) {
+            currentNode = currentNode.children[part];
+        } else { return null; }
+    }
+    return currentNode;
+}
+
+function getPathString() { return '~/' + currentPath.join('/'); }
+
+// --- COMMAND HANDLERS ---
+const commandHandlers = {
+    'help': () => `Available commands:<br><br><div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1">${['help', 'clear', 'ls', 'cd', 'cat', 'pwd'].sort().map(c => `<span>${c}</span>`).join('')}</div>`,
+    'clear': () => { terminalBody.innerHTML = ''; return ''; },
+    'pwd': () => getPathString(),
+    'ls': (args) => {
+        const { node } = resolvePath(args[0] || '.');
+        if (!node || node.type !== 'dir') return `<span class="text-custom-error">ls: cannot access '${args[0] || '.'}': No such file or directory</span>`;
+        const children = Object.keys(node.children).sort();
+        if (children.length === 0) return '';
+        return children.map(child => node.children[child].type === 'dir' ? `<span class="text-custom-prompt">${child}/</span>` : child).join('&nbsp;&nbsp;');
+    },
+    'cd': (args) => {
+        const targetPathStr = args[0] || '~';
+        if (targetPathStr === '~') {
+            currentPath = [];
+            return '';
+        }
+        const { node, path } = resolvePath(targetPathStr);
+        if (node && node.type === 'dir') {
+            currentPath = path;
+            return '';
+        }
+        return `<span class="text-custom-error">cd: no such file or directory: ${targetPathStr}</span>`;
+    },
+    'cat': (args) => {
+        const filename = args[0];
+        if (!filename) return 'Usage: cat &lt;filename&gt;';
+        const { node } = resolvePath(filename);
+        if (!node) return `<span class="text-custom-error">cat: ${filename}: No such file or directory</span>`;
+        if (node.type === 'dir') return `<span class="text-custom-error">cat: ${filename}: Is a directory</span>`;
+        if (filename.endsWith('.md') || filename.endsWith('.txt')) {
+            const htmlContent = DOMPurify.sanitize(marked.parse(node.content));
+            return `<div class="pager-output">${htmlContent}</div>`;
+        }
+        return node.content.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
+    }
+};
+
+// --- CORE EXECUTION ---
+function executeCommand(fullCommand) {
+    const [command, ...args] = fullCommand.trim().split(' ').filter(i => i);
+    
+    const lastInput = document.getElementById('commandInput');
+    if (lastInput) {
+        lastInput.setAttribute('readonly', true);
+        lastInput.id = '';
+        const parentDiv = lastInput.parentElement;
+        const staticText = document.createElement('span');
+        staticText.textContent = lastInput.value;
+        parentDiv.appendChild(staticText);
+        lastInput.remove();
+    }
+
+    if (!command) { createNewPrompt(); return; }
+    commandHistory.unshift(fullCommand);
+    historyIndex = -1;
+
+    let output = commandHandlers[command] ? commandHandlers[command](args) : `<span class="text-custom-error">command not found: ${command}</span>`;
+    if (output) appendOutput(output);
+    createNewPrompt();
+}
+
+function appendOutput(html) {
+    const outputLine = document.createElement('div');
+    outputLine.classList.add('output', 'mt-1', 'mb-4');
+    outputLine.innerHTML = html;
+    terminalBody.appendChild(outputLine);
+}
+
+function createNewPrompt(initialValue = '') {
+    const promptLine = document.createElement('div');
+    promptLine.classList.add('prompt-line', 'flex', 'items-start');
+    promptLine.innerHTML = `<span class="text-custom-prompt font-bold whitespace-nowrap">${user}@${host}:${getPathString()}&nbsp;</span><input type="text" id="commandInput" class="command-input flex-grow" value="${initialValue}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">`;
+    terminalBody.appendChild(promptLine);
+    const inputField = document.getElementById('commandInput');
+    inputField.focus();
+    inputField.setSelectionRange(initialValue.length, initialValue.length);
+    inputField.addEventListener('keydown', handleKeydown);
+    terminalBody.scrollTop = terminalBody.scrollHeight;
+}
+
+function handleKeydown(e) {
+    const inputField = e.target;
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        executeCommand(inputField.value);
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (historyIndex < commandHistory.length - 1) {
+            historyIndex++;
+            inputField.value = commandHistory[historyIndex];
+        }
+    } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (historyIndex > 0) {
+            historyIndex--;
+            inputField.value = commandHistory[historyIndex];
+        } else {
+            historyIndex = -1;
+            inputField.value = '';
+        }
+    } else if (e.key === 'l' && e.ctrlKey) {
+        e.preventDefault();
+        commandHandlers.clear();
+        createNewPrompt(inputField.value);
+    } else if (e.key === 'Tab') {
+        e.preventDefault();
+        handleTabCompletion(inputField);
+    }
+}
+
+function handleTabCompletion(inputField) {
+    const text = inputField.value;
+    const parts = text.split(' ');
+    const toComplete = parts[parts.length - 1];
+    if (!toComplete) return;
+
+    const { node: dirNode } = resolvePath('.');
+    const potentialCompletions = Object.keys(dirNode.children).filter(name => name.startsWith(toComplete));
+
+    if (potentialCompletions.length === 1) {
+        const completion = potentialCompletions[0];
+        const completionNode = dirNode.children[completion];
+        parts[parts.length - 1] = completionNode.type === 'dir' ? completion + '/' : completion + ' ';
+        inputField.value = parts.join(' ');
+    } else if (potentialCompletions.length > 1) {
+        const currentLine = inputField.parentElement;
+        currentLine.innerHTML = `<span class="text-custom-prompt font-bold whitespace-nowrap">${user}@${host}:${getPathString()}&nbsp;</span><span>${text}</span>`;
+        appendOutput(potentialCompletions.join('&nbsp;&nbsp;'));
+        createNewPrompt(text);
+    }
+}
+
+// --- INITIALIZATION ---
+async function init() {
+    try {
+        // Once the file system is loaded, start the terminal
+        appendOutput(`Welcome! Type 'help' to see the list of available commands.`);
+        createNewPrompt();
+
+    } catch (error) {
+        console.error("Error loading file system:", error);
+        const errorMessage = `<span class="text-custom-error">FATAL ERROR:</span> Could not load 'fileSystem.js'.<br>Please ensure the file exists and you are running this from a local web server.`;
+        appendOutput(errorMessage);
+    }
+}
+
+// Start the application
+init();
+</script>
+</body>
+</html>
+
