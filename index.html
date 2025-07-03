@@ -253,7 +253,7 @@ const commandHandlers = {
     'help': () => `Available commands:<br><br><div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1">${['help', 'clear', 'ls', 'cd', 'cat', 'pwd', 'who', 'python', 'exit'].sort().map(c => `<span>${c}</span>`).join('')}</div>`,
     'clear': () => { terminalBody.innerHTML = ''; return ''; },
     'pwd': () => getPathString(),
-    'who': () => `Logged in as: ${user}<br>This portfolio belongs to Emily Carter, a computational scientist.`,
+    'who': () => `Logged in as: ${user}<br>This portfolio belongs to Emily Boudreaux, a computational astrophysicist.`,
     'exit': () => {
         document.getElementById('close-btn').click();
         return null; // Special value to prevent new prompt
@@ -509,7 +509,7 @@ function setupWindowControls() {
 
 // --- INITIALIZATION ---
 function init() {
-    appendOutput(`Welcome! Type 'help' to see the list of available commands.<br>Try running 'python projects/cloud_model.py' to see an emulated execution.`);
+    appendOutput(`Welcome! Type 'help' to see the list of available commands.<br>Try running 'python projects/mplEasyAnimate/makeAnimation.py' to see an emulated execution.`);
     createNewPrompt();
     setupWindowControls();
 }
