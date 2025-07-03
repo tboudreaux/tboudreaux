@@ -11,6 +11,9 @@
     <!-- Markdown & Sanitizer Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@2.3.8/dist/purify.min.js"></script>
+    <!-- Syntax Highlighting Library (highlight.js) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
     <script src="fileSystem.js"></script>
     <style>
         :root {
@@ -23,7 +26,6 @@
             --table-header-bg: #1f2335;
         }
         @media (prefers-color-scheme: light) {
-            /* Light Mode */
             :root {
                 --bg-color: #f0f0f0; --window-bg: #ffffff; --text-color: #333333;
                 --prompt-color: #1a73e8; --command-color: #333333; --output-color: #333333;
@@ -33,19 +35,27 @@
                 --table-header-bg: #f1f3f5;
             }
         }
+        html, body {
+            height: 100%;
+            overflow: hidden; /* Prevent scrollbars */
+        }
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--bg-color);
+        }
         .terminal-body, .command-input { font-family: 'Fira Code', monospace; }
         .command-input { background: transparent; border: none; outline: none; box-shadow: none; color: var(--command-color); caret-color: var(--cursor-color); padding: 0; margin: 0; }
         .command-input:focus { outline: none; box-shadow: none; }
         .terminal-body::-webkit-scrollbar { width: 8px; }
         .terminal-body::-webkit-scrollbar-track { background: var(--window-bg); }
         .terminal-body::-webkit-scrollbar-thumb { background-color: var(--header-bg); border-radius: 4px; border: 2px solid var(--window-bg); }
-        .bg-custom-bg { background-color: var(--bg-color); }
-        .bg-custom-window { background-color: var(--window-bg); }
+        
         .text-custom-text { color: var(--text-color); }
         .text-custom-prompt { color: var(--prompt-color); }
         .bg-custom-header { background-color: var(--header-bg); }
         .border-custom-border { border-color: var(--border-color); }
-        .shadow-custom { box-shadow: 0 4px 25px var(--shadow-color); }
         .text-custom-output { color: var(--output-color); }
         .text-custom-error { color: var(--error-color); }
         .text-custom-link { color: var(--link-color); }
@@ -63,21 +73,134 @@
         .pager-output th, .pager-output td { border: 1px solid var(--pager-border); padding: 0.5rem 0.75rem; text-align: left; }
         .pager-output th { background-color: var(--table-header-bg); font-weight: bold; }
         .pager-output img { max-width: 100%; border-radius: 8px; margin-top: 0.5rem; }
+        .hljs { border-radius: 8px; }
+
+        /* Window & Animation Styles */
+        #terminal-wrapper {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55), opacity 0.3s ease-in-out, padding 0.3s ease;
+            transform-origin: bottom left;
+        }
+        @media (min-width: 640px) {
+            #terminal-wrapper {
+                padding: 2rem;
+            }
+        }
+        #terminal-wrapper.minimized {
+            transform: scale(0.05) translateY(100vh);
+            opacity: 0;
+            pointer-events: none;
+        }
+        #terminal-wrapper.closed {
+            transform: scale(0.7);
+            opacity: 0;
+            pointer-events: none;
+        }
+        #terminal-wrapper.maximized {
+            padding: 0;
+        }
+        #terminal {
+            background-color: var(--window-bg);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 25px var(--shadow-color);
+            width: 100%;
+            height: 100%;
+            max-width: 1024px;
+            border-radius: 0.5rem;
+            transition: width 0.3s ease, height 0.3s ease, max-width 0.3s ease, border-radius 0.3s ease;
+        }
+        #terminal-wrapper.maximized #terminal {
+            width: 100%;
+            height: 100%;
+            max-width: none;
+            border-radius: 0;
+            border: none;
+        }
+        
+        #hidden-message, #goodbye-message {
+            position: absolute;
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--prompt-color);
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+            pointer-events: none;
+            text-align: center;
+            padding: 1rem;
+        }
+        #hidden-message.visible, #goodbye-message.visible {
+            opacity: 1;
+        }
+        #dock {
+            position: fixed;
+            bottom: 1rem;
+            left: 1rem;
+            z-index: 100;
+        }
+        #dock-icon {
+            width: 60px;
+            height: 60px;
+            background-color: var(--window-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px var(--shadow-color);
+            opacity: 0;
+            transform: translateY(100px);
+            transition: opacity 0.3s ease, transform 0.4s ease;
+            pointer-events: none;
+        }
+        #dock-icon.visible {
+            opacity: 1;
+            transform: translateY(0);
+            pointer-events: auto;
+        }
+        #dock-icon svg {
+            width: 32px;
+            height: 32px;
+            color: var(--prompt-color);
+        }
     </style>
 </head>
 <body class="bg-custom-bg text-custom-text font-sans antialiased">
 
-    <div id="terminal" class="bg-custom-window border-custom-border shadow-custom flex flex-col w-full max-w-4xl mx-auto my-8 rounded-lg border h-[90vh] min-h-[500px] overflow-hidden">
-        <div class="bg-custom-header flex items-center px-4 py-2 border-b border-custom-border select-none">
-            <div class="flex space-x-2"><div class="w-3 h-3 rounded-full bg-red-500"></div><div class="w-3 h-3 rounded-full bg-yellow-500"></div><div class="w-3 h-3 rounded-full bg-green-500"></div></div>
-            <div class="text-center text-sm flex-grow text-gray-400">guest@EmilysPortfolio: ~</div>
+    <div id="hidden-message">Oops, you weren't supposed to see this!</div>
+    <div id="goodbye-message">Goodbye! Refresh to start over.</div>
+
+    <div id="terminal-wrapper">
+        <div id="terminal" class="flex flex-col overflow-hidden">
+            <div class="bg-custom-header flex items-center px-4 py-2 border-b border-custom-border select-none cursor-grab active:cursor-grabbing">
+                <div class="flex space-x-2">
+                    <div id="close-btn" class="w-3 h-3 rounded-full bg-red-500 cursor-pointer"></div>
+                    <div id="minimize-btn" class="w-3 h-3 rounded-full bg-yellow-500 cursor-pointer"></div>
+                    <div id="maximize-btn" class="w-3 h-3 rounded-full bg-green-500 cursor-pointer"></div>
+                </div>
+                <div class="text-center text-sm flex-grow text-gray-400">guest@EmilysPortfolio: ~</div>
+            </div>
+            <div id="terminalBody" class="terminal-body flex-grow p-4 overflow-y-auto text-sm" onclick="document.getElementById('commandInput')?.focus();"></div>
         </div>
-        <div id="terminalBody" class="terminal-body flex-grow p-4 overflow-y-auto text-sm" onclick="document.getElementById('commandInput')?.focus();"></div>
+    </div>
+
+    <div id="dock">
+        <div id="dock-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5l3 2.25-3 2.25m4.5 0h3m-9 8.25h13.5A2.25 2.25 0 0021 18V6a2.25 2.25 0 00-2.25-2.25H5.25A2.25 2.25 0 003 6v12a2.25 2.25 0 002.25 2.25z" />
+            </svg>
+        </div>
     </div>
 
 <script>
+
 // ###################################################################
-// ###############   CORE LOGIC (No need to edit below)  #############
+// ###############   CORE LOGIC (with modifications) #################
 // ###################################################################
 const terminalBody = document.getElementById('terminalBody');
 const user = "guest";
@@ -86,15 +209,21 @@ const host = "EmilysPortfolio.dev";
 let currentPath = [];
 let commandHistory = [];
 let historyIndex = -1;
+let terminalActive = true;
+
+const sleep = ms => new Promise(res => setTimeout(res, ms));
 
 // --- FILE SYSTEM UTILITIES ---
 function resolvePath(pathStr) {
     let pathParts;
-    if (pathStr.startsWith('/')) {
+    if (!pathStr || pathStr === '~') {
+        pathParts = [];
+    } else if (pathStr.startsWith('/')) {
         pathParts = pathStr.substring(1).split('/').filter(p => p);
     } else {
         pathParts = (currentPath.join('/') + '/' + pathStr).split('/').filter(p => p);
     }
+    
     let resolvedPath = [];
     for (const part of pathParts) {
         if (part === '..') {
@@ -109,7 +238,7 @@ function resolvePath(pathStr) {
 function getNodeFromPath(pathArray) {
     let currentNode = fileSystem;
     for (const part of pathArray) {
-        if (currentNode && currentNode.type === 'dir' && currentNode.children[part]) {
+        if (currentNode && currentNode.type === 'dir' && currentNode.children && currentNode.children[part]) {
             currentNode = currentNode.children[part];
         } else { return null; }
     }
@@ -118,24 +247,26 @@ function getNodeFromPath(pathArray) {
 
 function getPathString() { return '~/' + currentPath.join('/'); }
 
+
 // --- COMMAND HANDLERS ---
 const commandHandlers = {
-    'help': () => `Available commands:<br><br><div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1">${['help', 'clear', 'ls', 'cd', 'cat', 'pwd'].sort().map(c => `<span>${c}</span>`).join('')}</div>`,
+    'help': () => `Available commands:<br><br><div class="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1">${['help', 'clear', 'ls', 'cd', 'cat', 'pwd', 'who', 'python', 'exit'].sort().map(c => `<span>${c}</span>`).join('')}</div>`,
     'clear': () => { terminalBody.innerHTML = ''; return ''; },
     'pwd': () => getPathString(),
+    'who': () => `Logged in as: ${user}<br>This portfolio belongs to Emily Carter, a computational scientist.`,
+    'exit': () => {
+        document.getElementById('close-btn').click();
+        return null; // Special value to prevent new prompt
+    },
     'ls': (args) => {
         const { node } = resolvePath(args[0] || '.');
         if (!node || node.type !== 'dir') return `<span class="text-custom-error">ls: cannot access '${args[0] || '.'}': No such file or directory</span>`;
-        const children = Object.keys(node.children).sort();
+        const children = node.children ? Object.keys(node.children).sort() : [];
         if (children.length === 0) return '';
         return children.map(child => node.children[child].type === 'dir' ? `<span class="text-custom-prompt">${child}/</span>` : child).join('&nbsp;&nbsp;');
     },
     'cd': (args) => {
         const targetPathStr = args[0] || '~';
-        if (targetPathStr === '~') {
-            currentPath = [];
-            return '';
-        }
         const { node, path } = resolvePath(targetPathStr);
         if (node && node.type === 'dir') {
             currentPath = path;
@@ -146,39 +277,96 @@ const commandHandlers = {
     'cat': (args) => {
         const filename = args[0];
         if (!filename) return 'Usage: cat &lt;filename&gt;';
+        
         const { node } = resolvePath(filename);
         if (!node) return `<span class="text-custom-error">cat: ${filename}: No such file or directory</span>`;
         if (node.type === 'dir') return `<span class="text-custom-error">cat: ${filename}: Is a directory</span>`;
+
+        const extension = filename.split('.').pop();
+        const codeExtensions = {
+            'py': 'python', 'cpp': 'cpp', 'c': 'c', 'h': 'c', 'hpp': 'cpp',
+            'f': 'fortran', 'f90': 'fortran', 'cu': 'cuda'
+        };
+
+        if (codeExtensions[extension]) {
+            const lang = codeExtensions[extension];
+            const escapedContent = node.content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            const codeBlock = `<pre><code class="language-${lang} hljs">${escapedContent}</code></pre>`;
+            setTimeout(() => {
+                const allCodeBlocks = document.querySelectorAll('pre code');
+                if (allCodeBlocks.length > 0) {
+                    hljs.highlightElement(allCodeBlocks[allCodeBlocks.length - 1]);
+                }
+            }, 0);
+            return codeBlock;
+        }
+
         if (filename.endsWith('.md') || filename.endsWith('.txt')) {
             const htmlContent = DOMPurify.sanitize(marked.parse(node.content));
             return `<div class="pager-output">${htmlContent}</div>`;
         }
+
         return node.content.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, '<br>');
+    },
+    'python': async (args) => {
+        const filename = args[0];
+        if (!filename) return 'Usage: python &lt;filename.py&gt;';
+        const { node } = resolvePath(filename);
+
+        if (!node) return `<span class="text-custom-error">python: can't open file '${filename}': [Errno 2] No such file or directory</span>`;
+        if (node.type === 'dir') return `<span class="text-custom-error">python: can't open file '${filename}': Is a directory</span>`;
+        if (!node.run_output || !Array.isArray(node.run_output)) {
+            return `This script is not configured for emulated execution. Try 'cat ${filename}' to view it.`;
+        }
+
+        const outputContainer = document.createElement('div');
+        outputContainer.classList.add('output', 'mt-1', 'mb-4', 'whitespace-pre-wrap');
+        terminalBody.appendChild(outputContainer);
+
+        for (const frame of node.run_output) {
+            await sleep(frame.delay || 100);
+            outputContainer.textContent += frame.content;
+            terminalBody.scrollTop = terminalBody.scrollHeight;
+        }
+        return '';
     }
 };
 
 // --- CORE EXECUTION ---
-function executeCommand(fullCommand) {
-    const [command, ...args] = fullCommand.trim().split(' ').filter(i => i);
-    
-    const lastInput = document.getElementById('commandInput');
-    if (lastInput) {
-        lastInput.setAttribute('readonly', true);
-        lastInput.id = '';
-        const parentDiv = lastInput.parentElement;
-        const staticText = document.createElement('span');
-        staticText.textContent = lastInput.value;
-        parentDiv.appendChild(staticText);
-        lastInput.remove();
+async function executeCommand(fullCommand) {
+    const lastInputContainer = document.getElementById('prompt-line-container');
+    if (lastInputContainer) {
+        const inputField = lastInputContainer.querySelector('input');
+        const promptText = lastInputContainer.querySelector('span').outerHTML;
+        lastInputContainer.innerHTML = `${promptText}<span>${inputField.value}</span>`;
+        lastInputContainer.id = '';
     }
 
-    if (!command) { createNewPrompt(); return; }
+    if (!fullCommand.trim()) {
+        if (terminalActive) createNewPrompt();
+        return;
+    }
+
     commandHistory.unshift(fullCommand);
     historyIndex = -1;
 
-    let output = commandHandlers[command] ? commandHandlers[command](args) : `<span class="text-custom-error">command not found: ${command}</span>`;
-    if (output) appendOutput(output);
-    createNewPrompt();
+    const [command, ...args] = fullCommand.trim().split(' ').filter(i => i);
+    const handler = commandHandlers[command];
+    let output;
+
+    if (handler) {
+        output = await handler(args);
+    } else {
+        output = `<span class="text-custom-error">command not found: ${command}</span>`;
+    }
+    
+    if (output) {
+        appendOutput(output);
+    }
+
+    if (terminalActive) {
+        createNewPrompt();
+    }
 }
 
 function appendOutput(html) {
@@ -186,13 +374,17 @@ function appendOutput(html) {
     outputLine.classList.add('output', 'mt-1', 'mb-4');
     outputLine.innerHTML = html;
     terminalBody.appendChild(outputLine);
+    terminalBody.scrollTop = terminalBody.scrollHeight;
 }
 
 function createNewPrompt(initialValue = '') {
+    if (!terminalActive) return;
     const promptLine = document.createElement('div');
+    promptLine.id = 'prompt-line-container';
     promptLine.classList.add('prompt-line', 'flex', 'items-start');
     promptLine.innerHTML = `<span class="text-custom-prompt font-bold whitespace-nowrap">${user}@${host}:${getPathString()}&nbsp;</span><input type="text" id="commandInput" class="command-input flex-grow" value="${initialValue}" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">`;
     terminalBody.appendChild(promptLine);
+    
     const inputField = document.getElementById('commandInput');
     inputField.focus();
     inputField.setSelectionRange(initialValue.length, initialValue.length);
@@ -201,6 +393,10 @@ function createNewPrompt(initialValue = '') {
 }
 
 function handleKeydown(e) {
+    if (!terminalActive) {
+        e.preventDefault();
+        return;
+    }
     const inputField = e.target;
     if (e.key === 'Enter') {
         e.preventDefault();
@@ -234,36 +430,88 @@ function handleTabCompletion(inputField) {
     const text = inputField.value;
     const parts = text.split(' ');
     const toComplete = parts[parts.length - 1];
-    if (!toComplete) return;
+    
+    let searchPath = toComplete.includes('/') ? toComplete.substring(0, toComplete.lastIndexOf('/')) : '.';
+    let partialName = toComplete.includes('/') ? toComplete.substring(toComplete.lastIndexOf('/') + 1) : toComplete;
 
-    const { node: dirNode } = resolvePath('.');
-    const potentialCompletions = Object.keys(dirNode.children).filter(name => name.startsWith(toComplete));
+    const { node: dirNode } = resolvePath(searchPath);
+    if (!dirNode || dirNode.type !== 'dir' || !dirNode.children) return;
+
+    const potentialCompletions = Object.keys(dirNode.children).filter(name => name.startsWith(partialName));
 
     if (potentialCompletions.length === 1) {
         const completion = potentialCompletions[0];
         const completionNode = dirNode.children[completion];
-        parts[parts.length - 1] = completionNode.type === 'dir' ? completion + '/' : completion + ' ';
+        const basePath = toComplete.includes('/') ? toComplete.substring(0, toComplete.lastIndexOf('/') + 1) : '';
+        parts[parts.length - 1] = basePath + (completionNode.type === 'dir' ? completion + '/' : completion + ' ');
         inputField.value = parts.join(' ');
     } else if (potentialCompletions.length > 1) {
-        const currentLine = inputField.parentElement;
-        currentLine.innerHTML = `<span class="text-custom-prompt font-bold whitespace-nowrap">${user}@${host}:${getPathString()}&nbsp;</span><span>${text}</span>`;
+        const lastInputContainer = document.getElementById('prompt-line-container');
+        const promptText = lastInputContainer.querySelector('span').outerHTML;
+        lastInputContainer.innerHTML = `${promptText}<span>${inputField.value}</span>`;
+        lastInputContainer.id = '';
         appendOutput(potentialCompletions.join('&nbsp;&nbsp;'));
         createNewPrompt(text);
     }
 }
 
-// --- INITIALIZATION ---
-async function init() {
-    try {
-        // Once the file system is loaded, start the terminal
-        appendOutput(`Welcome! Type 'help' to see the list of available commands.`);
-        createNewPrompt();
+// --- WINDOW CONTROLS & MOBILE ADAPTATIONS ---
+function setupWindowControls() {
+    const closeBtn = document.getElementById('close-btn');
+    const minimizeBtn = document.getElementById('minimize-btn');
+    const maximizeBtn = document.getElementById('maximize-btn');
+    const terminalWrapper = document.getElementById('terminal-wrapper');
+    const hiddenMessage = document.getElementById('hidden-message');
+    const goodbyeMessage = document.getElementById('goodbye-message');
+    const dockIcon = document.getElementById('dock-icon');
 
-    } catch (error) {
-        console.error("Error loading file system:", error);
-        const errorMessage = `<span class="text-custom-error">FATAL ERROR:</span> Could not load 'fileSystem.js'.<br>Please ensure the file exists and you are running this from a local web server.`;
-        appendOutput(errorMessage);
+    // Close button
+    closeBtn.addEventListener('click', () => {
+        terminalActive = false;
+        terminalWrapper.classList.add('closed');
+        goodbyeMessage.classList.add('visible');
+    });
+
+    // Minimize button
+    minimizeBtn.addEventListener('click', () => {
+        terminalWrapper.classList.add('minimized');
+        hiddenMessage.classList.add('visible');
+        dockIcon.classList.add('visible');
+    });
+
+    // Restore from dock
+    dockIcon.addEventListener('click', () => {
+        terminalWrapper.classList.remove('minimized');
+        hiddenMessage.classList.remove('visible');
+        dockIcon.classList.remove('visible');
+        setTimeout(() => document.getElementById('commandInput')?.focus(), 100);
+    });
+
+    // Maximize button (in-page)
+    maximizeBtn.addEventListener('click', () => {
+        terminalWrapper.classList.toggle('maximized');
+    });
+
+    // Mobile keyboard handler
+    if (window.visualViewport) {
+        const initialHeight = window.visualViewport.height;
+        window.visualViewport.addEventListener('resize', () => {
+            // This attempts to only trigger for keyboard, not just window resize
+            if (window.visualViewport.height < initialHeight * 0.9) {
+                 document.body.style.height = `${window.visualViewport.height}px`;
+                 document.getElementById('commandInput')?.scrollIntoView();
+            } else {
+                 document.body.style.height = '100%';
+            }
+        });
     }
+}
+
+// --- INITIALIZATION ---
+function init() {
+    appendOutput(`Welcome! Type 'help' to see the list of available commands.<br>Try running 'python projects/cloud_model.py' to see an emulated execution.`);
+    createNewPrompt();
+    setupWindowControls();
 }
 
 // Start the application
